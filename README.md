@@ -1,29 +1,26 @@
 # LA MORADA — Menú WebAR
 
-Repositorio privado del prototipo de realidad aumentada.
+Repositorio privado para el menú AR. La detección de superficies y el renderizado normal funcionan; la visibilidad final del contenido AR continúa en diagnóstico.
 
-## Estado
-El Galaxy S21 Ultra carga Three.js, abre AR y detecta superficies. Todavía **no está confirmada** la visualización del marcador sobre la mesa. La siguiente versión debe aislar el renderizado y proyección de cámara.
+## Publicación segura de prueba
 
-## Publicación por FTPS
-El workflow `.github/workflows/deploy.yml` solo se ejecuta manualmente y está protegido por el ambiente `ar-staging`.
+El usuario FTP de WePanel tiene asignada la raíz:
+`/home/lamorad1/public_html/lamoradaburgers.com.ar/menuvr`.
 
-Configurar en GitHub > Settings > Environments > **New environment**: `ar-staging`.
-Allí, agregar secretos:
-- `FTP_HOST`: `cp7037.webempresa.eu`
-- `FTP_USER`: usuario FTP limitado de WePanel
-- `FTP_PASSWORD`: contraseña FTPS (NO compartir por chat)
+Esto significa que **la carpeta de la web `/menuvr/` ya es la raíz del usuario FTP**. No repetir `public_html/menuvr` en la ruta remota.
 
-Agregar variable del environment:
-- `FTP_REMOTE_DIR`: **ruta del directorio remoto vista desde la cuenta FTP**, terminada en `menuvr/staging/` (por ejemplo `public_html/menuvr/staging/`, solo si ésa es la ruta real).
+Destino único de la automatización: **`staging/index.html`**, relativo a esa raíz FTP. URL prevista: `https://lamoradaburgers.com.ar/menuvr/staging/`.
 
-**Importante:** hay que verificar la raíz FTP y crear la carpeta de pruebas antes del primer despliegue. No usar `/menuvr/` de producción aún. El workflow solo sube `site/index.html`, no borra archivos. El FTP remoto puede ser relativo a la raíz de la cuenta.
+El workflow `.github/workflows/deploy.yml` se ejecuta **solo manualmente** y está asociado al environment `ar-staging`. No se ejecutó ningún despliegue desde este repositorio al preparar esta configuración.
 
-## Flujo
-1. Se agrega una versión validada en `site/index.html`.
-2. Se comprueban secretos y ruta exacta.
-3. En Actions > Publicar La Morada AR (FTPS) > Run workflow.
-4. Se verifica la URL pública de staging.
-5. Solo después se plantea el pase a producción.
+En GitHub > Settings > Environments > `ar-staging`:
+- Secret `FTP_HOST`: `cp7037.webempresa.eu`
+- Secret `FTP_USER`: cuenta FTP restringida de WePanel
+- Secret `FTP_PASSWORD`: contraseña (nunca compartir en chat)
+- Variable **`FTP_REMOTE_DIR`**: exactamente **`staging/`**.
 
-El QR queda postergado.
+El workflow verifica esa variable antes de publicar. Únicamente sube `site/index.html` y no elimina archivos. No modifica `/menuvr/index.html`.
+
+Para lanzar una prueba: GitHub > Actions > «Publicar La Morada AR (FTPS)» > Run workflow. Verificar que aparezca la página de staging y revisar los logs si falla. Si Webempresa asigna otra raíz FTP, detener el flujo y corregirlo antes de intentar publicar.
+
+El QR definitivo permanece postergado.
