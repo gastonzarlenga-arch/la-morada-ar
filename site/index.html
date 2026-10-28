@@ -1,3 +1,102 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>La Morada AR — staging</title>
-<style>body{margin:0;background:#141414;color:#f5f5f5;font:16px system-ui;display:grid;min-height:100vh;place-items:center;text-align:center}main{padding:28px;max-width:500px}strong{color:#ff851b}small{color:#aaa}</style></head><body><main><h1><strong>LA MORADA</strong> · AR</h1><p>Entorno de pruebas técnicas.</p><small>Esta página verifica la publicación FTPS. No es el menú comercial ni una versión funcional de realidad aumentada.</small></main></body></html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>LA MORADA AR · V13</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#171717;color:white;font-family:system-ui,Arial,sans-serif}
+canvas{display:block}
+#status{position:absolute;top:14px;left:14px;right:14px;max-width:500px;padding:12px 14px;background:rgba(0,0,0,.80);border-left:4px solid #fa8216;z-index:5;font-size:13px;line-height:1.45;pointer-events:none}
+#status strong{color:#ff8b24}
+#events{position:absolute;bottom:90px;left:14px;right:14px;max-height:26vh;overflow:auto;white-space:pre-wrap;font:11px/1.5 ui-monospace,monospace;color:#e6e6e6;background:rgba(0,0,0,.78);padding:10px;z-index:5}
+#copy{position:absolute;top:14px;right:14px;z-index:7;display:none}
+body.xr-active #status,body.xr-active #events,body.xr-active #copy{display:none}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.181.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.181.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<div id="status"><strong>LA MORADA AR V13</strong><div id="message">Cargando motor gráfico…</div></div>
+<pre id="events"></pre>
+<button id="copy" type="button">Copiar diagnóstico</button>
+<script>
+const records=[];
+function log(s){const line=new Date().toLocaleTimeString('es-AR')+' '+s;records.push(line);document.getElementById('events').textContent=records.slice(-26).join('\n');document.getElementById('message').textContent=s;}
+window.addEventListener('error',e=>log('ERROR JS: '+e.message));
+window.addEventListener('unhandledrejection',e=>log('ERROR promesa: '+String(e.reason)));
+document.getElementById('copy').onclick=()=>navigator.clipboard.writeText('LA MORADA AR V13\n'+records.join('\n'));
+log('Importando Three.js V13…');
+</script>
+<script type="module">
+try {
+  const THREE=await import('three');
+  const {ARButton}=await import('three/addons/webxr/ARButton.js');
+  log('Three.js cargó: '+THREE.REVISION);
+  const scene=new THREE.Scene();
+  const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.01,20);
+  const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.xr.enabled=true;
+  document.body.appendChild(renderer.domElement);
+  scene.add(new THREE.HemisphereLight(0xffffff,0xbbbbff,3));
+  const boxGeometry=new THREE.BoxGeometry(.16,.16,.16);
+  const orange=new THREE.Mesh(new THREE.BoxGeometry(.2,.2,.2),new THREE.MeshBasicMaterial({color:0xff851b}));
+  orange.position.set(0,0,-.7);scene.add(orange);
+  const ring=new THREE.Mesh(new THREE.RingGeometry(.12,.16,40).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0x13ee75,side:THREE.DoubleSide}));
+  ring.matrixAutoUpdate=false;ring.visible=false;scene.add(ring);
+  const controller=renderer.xr.getController(0);scene.add(controller);
+  let hitTestSource=null,hitTestRequested=false,frameCount=0,hitCount=0,placed=0,firstHit=false;
+  function place(){
+    if(!ring.visible){log('Selección sin superficie visible');return;}
+    const cube=new THREE.Mesh(boxGeometry,new THREE.MeshBasicMaterial({color:0x2898ff,depthTest:false}));
+    ring.matrix.decompose(cube.position,cube.quaternion,cube.scale);
+    cube.position.y+=.10;cube.renderOrder=9;scene.add(cube);
+    placed++;log('Cubo azul colocado: '+placed);
+  }
+  controller.addEventListener('select',place);
+  const btn=ARButton.createButton(renderer,{requiredFeatures:['hit-test']});
+  document.body.appendChild(btn);
+  const onEnd=()=>{document.body.classList.remove('xr-active');orange.visible=true;ring.visible=false;hitTestSource=null;hitTestRequested=false;document.getElementById('copy').style.display='block';log('Sesión AR finalizada · cuadros='+frameCount+' hits='+hitCount+' colocados='+placed);};
+  renderer.xr.addEventListener('sessionstart',()=>{
+    document.body.classList.add('xr-active');orange.visible=false;frameCount=0;hitCount=0;placed=0;firstHit=false;
+    log('AR iniciada · apuntá a mesa iluminada; tocá aro verde para colocar cubo azul');
+  });
+  renderer.xr.addEventListener('sessionend',onEnd);
+  renderer.setAnimationLoop((time,frame)=>{
+    if(frame){
+      frameCount++;
+      const session=renderer.xr.getSession();
+      const referenceSpace=renderer.xr.getReferenceSpace();
+      if(!hitTestRequested){
+        hitTestRequested=true;
+        session.requestReferenceSpace('viewer').then(space=>session.requestHitTestSource({space})).then(source=>{
+          hitTestSource=source;log('Hit Test preparado');
+        }).catch(e=>{log('ERROR Hit Test: '+e.message);hitTestRequested=false;});
+      }
+      if(hitTestSource){
+        const hits=frame.getHitTestResults(hitTestSource);
+        if(hits.length){
+          const pose=hits[0].getPose(referenceSpace);
+          if(pose){
+            ring.visible=true;
+            ring.matrix.fromArray(pose.transform.matrix);
+            hitCount++;
+            if(!firstHit){firstHit=true;log('PRIMER HIT: retículo debería verse en mesa');}
+          }else ring.visible=false;
+        }else ring.visible=false;
+      }
+      if(frameCount%180===0)log('XR frames='+frameCount+' hits='+hitCount+' aro='+ring.visible+' cubos='+placed);
+    }else{
+      orange.rotation.y+=.012;orange.rotation.x+=.006;
+    }
+    renderer.render(scene,camera);
+  });
+  addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+  if(!navigator.xr){log('WebXR no disponible en este navegador');}
+  else navigator.xr.isSessionSupported('immersive-ar').then(ok=>log('Visor listo; immersive-ar='+ok));
+} catch(e){log('ERROR al iniciar motor: '+(e.stack||e.message||String(e)));}
+</script>
+</body></html>
