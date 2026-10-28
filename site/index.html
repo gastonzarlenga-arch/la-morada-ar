@@ -18,7 +18,7 @@ body.xr-active #status,body.xr-active #events,body.xr-active #copy{display:none}
 </script>
 </head>
 <body>
-<div id="status"><strong>LA MORADA AR V13</strong><div id="message">Cargando motor gráfico…</div></div>
+<div id="status"><strong>LA MORADA AR V14</strong><div id="message">Cargando motor gráfico…</div></div>
 <pre id="events"></pre>
 <button id="copy" type="button">Copiar diagnóstico</button>
 <script>
@@ -26,8 +26,8 @@ const records=[];
 function log(s){const line=new Date().toLocaleTimeString('es-AR')+' '+s;records.push(line);document.getElementById('events').textContent=records.slice(-26).join('\n');document.getElementById('message').textContent=s;}
 window.addEventListener('error',e=>log('ERROR JS: '+e.message));
 window.addEventListener('unhandledrejection',e=>log('ERROR promesa: '+String(e.reason)));
-document.getElementById('copy').onclick=()=>navigator.clipboard.writeText('LA MORADA AR V13\n'+records.join('\n'));
-log('Importando Three.js V13…');
+document.getElementById('copy').onclick=()=>navigator.clipboard.writeText('LA MORADA AR V14\n'+records.join('\n'));
+log('Importando Three.js V14…');
 </script>
 <script type="module">
 try {
@@ -42,32 +42,46 @@ try {
   renderer.xr.enabled=true;
   document.body.appendChild(renderer.domElement);
   scene.add(new THREE.HemisphereLight(0xffffff,0xbbbbff,3));
-  const boxGeometry=new THREE.BoxGeometry(.16,.16,.16);
+  const boxGeometry=new THREE.BoxGeometry(.18,.18,.18);
+  const probe=new THREE.Mesh(new THREE.BoxGeometry(.17,.17,.17),new THREE.MeshBasicMaterial({color:0xff1754,depthTest:false,depthWrite:false,side:THREE.DoubleSide}));
+  probe.renderOrder=50;probe.visible=false;scene.add(probe);
+  const testOrigin=new THREE.Vector3(),testForward=new THREE.Vector3(),q=new THREE.Quaternion();
+  const projection=new THREE.Vector3();let xrPoseSeen=false;
   const orange=new THREE.Mesh(new THREE.BoxGeometry(.2,.2,.2),new THREE.MeshBasicMaterial({color:0xff851b}));
   orange.position.set(0,0,-.7);scene.add(orange);
-  const ring=new THREE.Mesh(new THREE.RingGeometry(.12,.16,40).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0x13ee75,side:THREE.DoubleSide}));
-  ring.matrixAutoUpdate=false;ring.visible=false;scene.add(ring);
+  const ring=new THREE.Mesh(new THREE.RingGeometry(.12,.16,40).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0x13ee75,side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
+  ring.matrixAutoUpdate=false;ring.renderOrder=40;ring.visible=false;scene.add(ring);
   const controller=renderer.xr.getController(0);scene.add(controller);
   let hitTestSource=null,hitTestRequested=false,frameCount=0,hitCount=0,placed=0,firstHit=false;
   function place(){
     if(!ring.visible){log('Selección sin superficie visible');return;}
     const cube=new THREE.Mesh(boxGeometry,new THREE.MeshBasicMaterial({color:0x2898ff,depthTest:false}));
     ring.matrix.decompose(cube.position,cube.quaternion,cube.scale);
-    cube.position.y+=.10;cube.renderOrder=9;scene.add(cube);
+    cube.position.y+=.13;cube.renderOrder=45;scene.add(cube);
     placed++;log('Cubo azul colocado: '+placed);
   }
   controller.addEventListener('select',place);
   const btn=ARButton.createButton(renderer,{requiredFeatures:['hit-test']});
   document.body.appendChild(btn);
-  const onEnd=()=>{document.body.classList.remove('xr-active');orange.visible=true;ring.visible=false;hitTestSource=null;hitTestRequested=false;document.getElementById('copy').style.display='block';log('Sesión AR finalizada · cuadros='+frameCount+' hits='+hitCount+' colocados='+placed);};
+  const onEnd=()=>{document.body.classList.remove('xr-active');orange.visible=true;probe.visible=false;ring.visible=false;hitTestSource=null;hitTestRequested=false;document.getElementById('copy').style.display='block';log('Sesión AR finalizada · cuadros='+frameCount+' hits='+hitCount+' colocados='+placed);};
   renderer.xr.addEventListener('sessionstart',()=>{
-    document.body.classList.add('xr-active');orange.visible=false;frameCount=0;hitCount=0;placed=0;firstHit=false;
-    log('AR iniciada · apuntá a mesa iluminada; tocá aro verde para colocar cubo azul');
+    document.body.classList.add('xr-active');orange.visible=false;probe.visible=true;frameCount=0;hitCount=0;placed=0;firstHit=false;xrPoseSeen=false;
+    log('AR iniciada · buscá cubo ROJO delante de la cámara y aro VERDE sobre mesa');
   });
   renderer.xr.addEventListener('sessionend',onEnd);
   renderer.setAnimationLoop((time,frame)=>{
     if(frame){
       frameCount++;
+      const xrRef=renderer.xr.getReferenceSpace();
+      const viewer= xrRef ? frame.getViewerPose(xrRef) : null;
+      if(viewer){
+        testOrigin.set(viewer.transform.position.x,viewer.transform.position.y,viewer.transform.position.z);
+        q.set(viewer.transform.orientation.x,viewer.transform.orientation.y,viewer.transform.orientation.z,viewer.transform.orientation.w);
+        testForward.set(0,0,-.50).applyQuaternion(q);
+        probe.position.copy(testOrigin).add(testForward);
+        probe.quaternion.copy(q);
+        if(!xrPoseSeen){log('Pose XR recibida; cubo rojo a 50 cm delante del visor');xrPoseSeen=true;}
+      }
       const session=renderer.xr.getSession();
       const referenceSpace=renderer.xr.getReferenceSpace();
       if(!hitTestRequested){
@@ -88,7 +102,14 @@ try {
           }else ring.visible=false;
         }else ring.visible=false;
       }
-      if(frameCount%180===0)log('XR frames='+frameCount+' hits='+hitCount+' aro='+ring.visible+' cubos='+placed);
+      if(frameCount%180===0){
+        const xrCamera=renderer.xr.getCamera();
+        const eye=xrCamera.cameras && xrCamera.cameras[0];
+        const pv=probe.position.clone();
+        if(eye){eye.updateMatrixWorld(true);pv.project(eye);}
+        const ndc=eye?pv.x.toFixed(2)+','+pv.y.toFixed(2)+','+pv.z.toFixed(2):'sin eye';
+        log('XR frames='+frameCount+' hits='+hitCount+' aro='+ring.visible+' cubos='+placed+' camaras='+((xrCamera.cameras||[]).length)+' rojoNDC='+ndc);
+      }
     }else{
       orange.rotation.y+=.012;orange.rotation.x+=.006;
     }
