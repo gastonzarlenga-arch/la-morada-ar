@@ -1,100 +1,62 @@
 <!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<title>LA MORADA AR V16 — Prueba oficial mínima</title>
-<style>
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#161616;color:#fff;font-family:system-ui,sans-serif}
-#label{position:absolute;top:12px;left:12px;right:12px;padding:12px;background:#191919e8;border-left:4px solid #fa831a;z-index:2;pointer-events:none}
-#logs{position:absolute;bottom:85px;left:12px;right:12px;max-height:23%;overflow:auto;white-space:pre-wrap;color:#eee;background:#000c;padding:10px;font:11px/1.5 monospace}
-#copy{position:absolute;top:16px;right:16px;z-index:3}
-body.xr #label,body.xr #logs,body.xr #copy{display:none}
-</style>
-<script type="importmap">
-{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.181.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.181.0/examples/jsm/"}}
-</script>
-</head>
-<body>
-<div id="label"><strong>LA MORADA AR V16</strong><div id="state">Prueba mínima de renderizado AR</div></div>
-<pre id="logs"></pre>
-<button id="copy">Copiar registro</button>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LA MORADA AR V17 — WebXR puro</title>
+<style>html,body{margin:0;background:#171717;color:#fff;font:15px system-ui}main{padding:20px;max-width:650px;margin:auto}h1{color:#ff851b}button{padding:13px 18px;font-size:16px;margin:8px 0}pre{background:#080808;color:#eee;white-space:pre-wrap;word-break:break-word;padding:15px;font:12px/1.5 monospace}#canvas{width:100%;height:240px;background:#222;display:block}small{color:#bbb}</style></head><body>
+<main><h1>LA MORADA AR V17</h1><p>Prueba aislada: WebXR + WebGL puros, sin Three.js ni detección de mesa.</p><p>En AR debería aparecer un <strong style="color:#ff00cf">triángulo fucsia grande</strong> fijo en el centro de la cámara. Si no aparece, el registro indicará si WebGL dibujó en el framebuffer XR.</p>
+<button id="start">INICIAR AR</button> <button id="copy">COPIAR DIAGNÓSTICO</button>
+<canvas id="canvas"></canvas><pre id="log"></pre><small>La prueba solo dibuja una figura de calibración; no usa la ubicación de la mesa.</small></main>
 <script>
-const lines=[];function log(s){lines.push(new Date().toLocaleTimeString('es-AR')+' '+s);document.querySelector('#logs').textContent=lines.slice(-25).join('\n');document.querySelector('#state').textContent=s;}
-window.onerror=(m)=>log('ERROR: '+m);
-window.onunhandledrejection=e=>log('ERROR promesa: '+String(e.reason));
-document.querySelector('#copy').onclick=()=>navigator.clipboard.writeText('LA MORADA AR V16\n'+lines.join('\n'));
-</script>
-<script type="module">
-try {
-  const THREE=await import('three');
-  const { ARButton }=await import('three/addons/webxr/ARButton.js');
-  const scene=new THREE.Scene();
-  const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.01,20);
-  scene.add(new THREE.HemisphereLight(0xffffff,0xbbbbff,3));
-
-  // Mantener configuración original del ejemplo oficial: sin composiciones manuales.
-  const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
-  renderer.setPixelRatio(devicePixelRatio);
-  renderer.setSize(innerWidth,innerHeight);
-  renderer.xr.enabled=true;
-  document.body.appendChild(renderer.domElement);
-
-  let hits=0,frames=0,placed=0,source=null,requested=false;
-  const reticle=new THREE.Mesh(
-    new THREE.RingGeometry(.15,.2,32).rotateX(-Math.PI/2),
-    new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide})
-  );
-  reticle.matrixAutoUpdate=false;reticle.visible=false;scene.add(reticle);
-
-  const cylinder=new THREE.CylinderGeometry(.10,.10,.20,32).translate(0,.10,0);
-  const controller=renderer.xr.getController(0);
-  controller.addEventListener('select',()=>{
-    if(!reticle.visible){log('Toque sin retículo');return;}
-    const mesh=new THREE.Mesh(cylinder,new THREE.MeshBasicMaterial({color:0xff8500}));
-    reticle.matrix.decompose(mesh.position,mesh.quaternion,mesh.scale);
-    scene.add(mesh);
-    placed++;log('Colocación número '+placed);
-  });
-  scene.add(controller);
-
-  document.body.appendChild(ARButton.createButton(renderer,{requiredFeatures:['hit-test']}));
-  renderer.xr.addEventListener('sessionstart',()=>{
-    document.body.classList.add('xr');frames=hits=placed=0;log('AR iniciada: buscá retículo blanco; tocá para crear cilindro naranja');
-  });
-  renderer.xr.addEventListener('sessionend',()=>{
-    document.body.classList.remove('xr');reticle.visible=false;requested=false;source=null;
-    log('Fin AR, frames='+frames+' hits='+hits+' colocados='+placed);
-  });
-
-  renderer.setAnimationLoop((_,frame)=>{
-    if(frame){
-      frames++;
-      const session=renderer.xr.getSession();
-      const ref=renderer.xr.getReferenceSpace();
-      if(!requested){
-        requested=true;
-        session.requestReferenceSpace('viewer')
-          .then(view=>session.requestHitTestSource({space:view}))
-          .then(hitSource=>{source=hitSource;log('Fuente Hit Test lista');})
-          .catch(e=>log('Hit Test ERROR '+e.message));
-        session.addEventListener('end',()=>{requested=false;source=null;},{once:true});
-      }
-      if(source){
-        const results=frame.getHitTestResults(source);
-        if(results.length){
-          const pose=results[0].getPose(ref);
-          if(pose){reticle.visible=true;reticle.matrix.fromArray(pose.transform.matrix);hits++;}
-          else reticle.visible=false;
-        }else reticle.visible=false;
-      }
-      if(frames%180===0)log('XR frames='+frames+' hits='+hits+' reticle='+reticle.visible+' cylinders='+placed);
-    }
-    renderer.render(scene,camera);
-  });
-
-  addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
-  log('Three.js '+THREE.REVISION+' cargó; visor listo. Iniciar AR');
-}catch(e){log('ERROR inicio: '+(e.stack||e));}
-</script>
-</body></html>
+'use strict';
+const lines=[];const out=document.querySelector('#log');
+const log=(s)=>{lines.push(new Date().toLocaleTimeString('es-AR')+' '+s);out.textContent=lines.slice(-35).join('\n');};
+window.onerror=(msg)=>log('ERROR: '+msg);
+window.onunhandledrejection=(e)=>log('ERROR promesa: '+e.reason);
+document.querySelector('#copy').onclick=()=>navigator.clipboard.writeText('LA MORADA V17\n'+lines.join('\n'));
+const canvas=document.querySelector('#canvas'), gl=canvas.getContext('webgl',{xrCompatible:true,alpha:true,antialias:false,preserveDrawingBuffer:false});
+function shader(type,src){const sh=gl.createShader(type);gl.shaderSource(sh,src);gl.compileShader(sh);if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(sh));return sh;}
+let program, buffer, session,ref,frames=0;
+try{
+ if(!gl)throw Error('WebGL no disponible');
+ program=gl.createProgram();
+ gl.attachShader(program,shader(gl.VERTEX_SHADER,'attribute vec2 position; void main(){gl_Position=vec4(position,0.0,1.0);}'));
+ gl.attachShader(program,shader(gl.FRAGMENT_SHADER,'precision mediump float; void main(){gl_FragColor=vec4(1.0,0.0,0.75,1.0);}'));
+ gl.linkProgram(program);
+ if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));
+ buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+ gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-0.65,-0.45,0.65,-0.45,0,0.65]),gl.STATIC_DRAW);
+ gl.useProgram(program);gl.enableVertexAttribArray(gl.getAttribLocation(program,'position'));
+ gl.vertexAttribPointer(gl.getAttribLocation(program,'position'),2,gl.FLOAT,false,0,0);
+ gl.viewport(0,0,canvas.width,canvas.height);gl.clearColor(0,0,0,1);gl.clear(gl.COLOR_BUFFER_BIT);gl.drawArrays(gl.TRIANGLES,0,3);
+ log('WebGL operativo; dibujo fucsia normal realizado. WebGL version='+gl.getParameter(gl.VERSION));
+}catch(e){log('ERROR inicio WebGL: '+e.message);}
+document.querySelector('#start').onclick=async()=>{
+ try{
+  if(!navigator.xr)throw Error('navigator.xr no disponible');
+  const supported=await navigator.xr.isSessionSupported('immersive-ar');log('immersive-ar='+supported);
+  if(!supported)throw Error('AR no soportada');
+  await gl.makeXRCompatible();
+  session=await navigator.xr.requestSession('immersive-ar');
+  session.updateRenderState({baseLayer:new XRWebGLLayer(session,gl,{alpha:true,depth:false,stencil:false,antialias:false})});
+  ref=await session.requestReferenceSpace('local');
+  frames=0;log('Sesión AR activa, baseLayer='+!!session.renderState.baseLayer);
+  session.addEventListener('end',()=>{log('Fin AR: frames='+frames);session=null;});
+  session.requestAnimationFrame(frame);
+ }catch(e){log('ERROR iniciar AR: '+(e.stack||e.message));}
+};
+function frame(time,xrFrame){
+ const active=xrFrame.session;active.requestAnimationFrame(frame);frames++;
+ const pose=xrFrame.getViewerPose(ref), layer=active.renderState.baseLayer;
+ if(!pose||!layer){if(frames%90===0)log('No hay pose o layer');return;}
+ gl.bindFramebuffer(gl.FRAMEBUFFER,layer.framebuffer);
+ gl.disable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.disable(gl.SCISSOR_TEST);
+ gl.colorMask(true,true,true,true);
+ gl.useProgram(program);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+ const loc=gl.getAttribLocation(program,'position');gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+ for(const view of pose.views){
+  const vp=layer.getViewport(view);gl.viewport(vp.x,vp.y,vp.width,vp.height);
+  gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.drawArrays(gl.TRIANGLES,0,3);
+ }
+ if(frames===1||frames%180===0)log('XR frames='+frames+' vistas='+pose.views.length+' fb='+gl.checkFramebufferStatus(gl.FRAMEBUFFER)+' errorGL='+gl.getError());
+}
+</script></body></html>
