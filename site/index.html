@@ -1,62 +1,72 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>LA MORADA AR V17 — WebXR puro</title>
-<style>html,body{margin:0;background:#171717;color:#fff;font:15px system-ui}main{padding:20px;max-width:650px;margin:auto}h1{color:#ff851b}button{padding:13px 18px;font-size:16px;margin:8px 0}pre{background:#080808;color:#eee;white-space:pre-wrap;word-break:break-word;padding:15px;font:12px/1.5 monospace}#canvas{width:100%;height:240px;background:#222;display:block}small{color:#bbb}</style></head><body>
-<main><h1>LA MORADA AR V17</h1><p>Prueba aislada: WebXR + WebGL puros, sin Three.js ni detección de mesa.</p><p>En AR debería aparecer un <strong style="color:#ff00cf">triángulo fucsia grande</strong> fijo en el centro de la cámara. Si no aparece, el registro indicará si WebGL dibujó en el framebuffer XR.</p>
-<button id="start">INICIAR AR</button> <button id="copy">COPIAR DIAGNÓSTICO</button>
-<canvas id="canvas"></canvas><pre id="log"></pre><small>La prueba solo dibuja una figura de calibración; no usa la ubicación de la mesa.</small></main>
-<script>
+<title>LA MORADA AR V18 — WebGL 3D</title>
+<style>html,body{margin:0;background:#161616;color:white;font:15px system-ui}main{max-width:650px;margin:auto;padding:18px}h1{color:#ff851b}button{padding:12px 16px;margin:6px 3px;font-size:15px}pre{background:#090909;padding:12px;white-space:pre-wrap;font:11px/1.5 monospace;max-height:250px;overflow:auto}canvas{width:100%;height:200px;background:#252525}small{color:#aaa}</style></head><body><main>
+<h1>LA MORADA AR V18</h1><p>WebGL 3D sin Three.js. En AR: triángulo fucsia de referencia; cubo naranja en la mesa cuando se detecte. Tocá pantalla para fijarlo.</p>
+<button id="start">INICIAR AR</button><button id="copy">COPIAR DIAGNÓSTICO</button><canvas id="canvas"></canvas><pre id="logs"></pre><small>La cámara real debe permanecer visible detrás de los objetos.</small>
+</main><script>
 'use strict';
-const lines=[];const out=document.querySelector('#log');
-const log=(s)=>{lines.push(new Date().toLocaleTimeString('es-AR')+' '+s);out.textContent=lines.slice(-35).join('\n');};
-window.onerror=(msg)=>log('ERROR: '+msg);
-window.onunhandledrejection=(e)=>log('ERROR promesa: '+e.reason);
-document.querySelector('#copy').onclick=()=>navigator.clipboard.writeText('LA MORADA V17\n'+lines.join('\n'));
-const canvas=document.querySelector('#canvas'), gl=canvas.getContext('webgl',{xrCompatible:true,alpha:true,antialias:false,preserveDrawingBuffer:false});
-function shader(type,src){const sh=gl.createShader(type);gl.shaderSource(sh,src);gl.compileShader(sh);if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(sh));return sh;}
-let program, buffer, session,ref,frames=0;
-try{
- if(!gl)throw Error('WebGL no disponible');
- program=gl.createProgram();
- gl.attachShader(program,shader(gl.VERTEX_SHADER,'attribute vec2 position; void main(){gl_Position=vec4(position,0.0,1.0);}'));
- gl.attachShader(program,shader(gl.FRAGMENT_SHADER,'precision mediump float; void main(){gl_FragColor=vec4(1.0,0.0,0.75,1.0);}'));
- gl.linkProgram(program);
- if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));
- buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
- gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-0.65,-0.45,0.65,-0.45,0,0.65]),gl.STATIC_DRAW);
- gl.useProgram(program);gl.enableVertexAttribArray(gl.getAttribLocation(program,'position'));
- gl.vertexAttribPointer(gl.getAttribLocation(program,'position'),2,gl.FLOAT,false,0,0);
- gl.viewport(0,0,canvas.width,canvas.height);gl.clearColor(0,0,0,1);gl.clear(gl.COLOR_BUFFER_BIT);gl.drawArrays(gl.TRIANGLES,0,3);
- log('WebGL operativo; dibujo fucsia normal realizado. WebGL version='+gl.getParameter(gl.VERSION));
-}catch(e){log('ERROR inicio WebGL: '+e.message);}
+const lines=[], logEl=document.querySelector('#logs');function log(s){lines.push(new Date().toLocaleTimeString('es-AR')+' '+s);logEl.textContent=lines.slice(-32).join('\n');}
+window.onerror=e=>log('ERROR JS: '+e);
+window.onunhandledrejection=e=>log('ERROR PROMESA: '+e.reason);
+document.querySelector('#copy').onclick=()=>navigator.clipboard.writeText('LA MORADA AR V18\n'+lines.join('\n'));
+const canvas=document.querySelector('canvas');
+const gl=canvas.getContext('webgl',{xrCompatible:true,alpha:true,antialias:false});
+function sh(type,src){const x=gl.createShader(type);gl.shaderSource(x,src);gl.compileShader(x);if(!gl.getShaderParameter(x,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(x));return x;}
+function program(v,f){const p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,v));gl.attachShader(p,sh(gl.FRAGMENT_SHADER,f));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));return p;}
+const matId=()=>new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
+function mul(a,b){const c=new Float32Array(16);for(let j=0;j<4;j++)for(let i=0;i<4;i++)for(let k=0;k<4;k++)c[j*4+i]+=a[k*4+i]*b[j*4+k];return c;}
+function tr(x,y,z){const m=matId();m[12]=x;m[13]=y;m[14]=z;return m;}
+function sc(x,y,z){const m=matId();m[0]=x;m[5]=y;m[10]=z;return m;}
+function mesh(vertices){const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);return {b,n:vertices.length/3};}
+let p3d,uM,uColor,aPos,tri,box,session,ref,source,frames=0,hits=0,placed=[],lastHit=null;
+try {
+if(!gl)throw Error('WebGL indisponible');
+p3d=program('attribute vec3 position;uniform mat4 mvp;void main(){gl_Position=mvp*vec4(position,1.0);}','precision mediump float;uniform vec4 color;void main(){gl_FragColor=color;}');
+aPos=gl.getAttribLocation(p3d,'position');uM=gl.getUniformLocation(p3d,'mvp');uColor=gl.getUniformLocation(p3d,'color');
+tri=mesh([-.55,-.40,0,.55,-.40,0,0,.52,0]);
+const faces=[[[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]],[[1,-1,-1],[-1,-1,-1],[-1,1,-1],[1,1,-1]],[[1,-1,1],[1,-1,-1],[1,1,-1],[1,1,1]],[[-1,-1,-1],[-1,-1,1],[-1,1,1],[-1,1,-1]],[[-1,1,1],[1,1,1],[1,1,-1],[-1,1,-1]],[[-1,-1,-1],[1,-1,-1],[1,-1,1],[-1,-1,1]]];
+let verts=[];for(const q of faces){for(const ix of [0,1,2,0,2,3])verts.push(...q[ix]);}
+box=mesh(verts);
+log('WebGL listo. Botón INICIAR AR; triángulo fucsia en centro.');
+} catch(e){log('ERROR preparación: '+e.message);}
+function draw(m,msh,color){gl.useProgram(p3d);gl.bindBuffer(gl.ARRAY_BUFFER,msh.b);gl.enableVertexAttribArray(aPos);gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,0,0);gl.uniformMatrix4fv(uM,false,m);gl.uniform4fv(uColor,color);gl.drawArrays(gl.TRIANGLES,0,msh.n);}
+function drawNormal(){gl.viewport(0,0,canvas.width,canvas.height);gl.clearColor(0,0,0,1);gl.clear(gl.COLOR_BUFFER_BIT);draw(matId(),tri,[1,0,.75,1]);}
+drawNormal();
 document.querySelector('#start').onclick=async()=>{
- try{
-  if(!navigator.xr)throw Error('navigator.xr no disponible');
-  const supported=await navigator.xr.isSessionSupported('immersive-ar');log('immersive-ar='+supported);
-  if(!supported)throw Error('AR no soportada');
-  await gl.makeXRCompatible();
-  session=await navigator.xr.requestSession('immersive-ar');
-  session.updateRenderState({baseLayer:new XRWebGLLayer(session,gl,{alpha:true,depth:false,stencil:false,antialias:false})});
-  ref=await session.requestReferenceSpace('local');
-  frames=0;log('Sesión AR activa, baseLayer='+!!session.renderState.baseLayer);
-  session.addEventListener('end',()=>{log('Fin AR: frames='+frames);session=null;});
-  session.requestAnimationFrame(frame);
- }catch(e){log('ERROR iniciar AR: '+(e.stack||e.message));}
+try{
+if(!navigator.xr)throw Error('navigator.xr no disponible');
+await gl.makeXRCompatible();
+session=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['local','hit-test']});
+session.updateRenderState({baseLayer:new XRWebGLLayer(session,gl,{alpha:true,depth:true,stencil:false,antialias:false})});
+ref=await session.requestReferenceSpace('local');
+const viewer=await session.requestReferenceSpace('viewer');
+source=await session.requestHitTestSource({space:viewer});
+frames=hits=0;placed=[];lastHit=null;
+log('AR iniciada; fuente de detección preparada');
+session.addEventListener('select',()=>{if(lastHit){placed.push(new Float32Array(lastHit));log('Cubo fijado #'+placed.length);}else log('Toque sin detección actual');});
+session.addEventListener('end',()=>{log('Fin AR frames='+frames+' hits='+hits+' colocados='+placed.length);source?.cancel();source=null;session=null;drawNormal();});
+session.requestAnimationFrame(onFrame);
+}catch(e){log('ERROR AR: '+(e.stack||e));}
 };
-function frame(time,xrFrame){
- const active=xrFrame.session;active.requestAnimationFrame(frame);frames++;
- const pose=xrFrame.getViewerPose(ref), layer=active.renderState.baseLayer;
- if(!pose||!layer){if(frames%90===0)log('No hay pose o layer');return;}
- gl.bindFramebuffer(gl.FRAMEBUFFER,layer.framebuffer);
- gl.disable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.disable(gl.SCISSOR_TEST);
- gl.colorMask(true,true,true,true);
- gl.useProgram(program);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
- const loc=gl.getAttribLocation(program,'position');gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
- for(const view of pose.views){
-  const vp=layer.getViewport(view);gl.viewport(vp.x,vp.y,vp.width,vp.height);
-  gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
-  gl.drawArrays(gl.TRIANGLES,0,3);
- }
- if(frames===1||frames%180===0)log('XR frames='+frames+' vistas='+pose.views.length+' fb='+gl.checkFramebufferStatus(gl.FRAMEBUFFER)+' errorGL='+gl.getError());
+function onFrame(t,frame){
+const s=frame.session;s.requestAnimationFrame(onFrame);frames++;
+const pose=frame.getViewerPose(ref),layer=s.renderState.baseLayer;
+if(!pose||!layer)return;
+const matches=frame.getHitTestResults(source);
+lastHit=null;
+if(matches.length){const hit=matches[0].getPose(ref);if(hit){lastHit=hit.transform.matrix;hits++;}}
+gl.bindFramebuffer(gl.FRAMEBUFFER,layer.framebuffer);
+gl.disable(gl.CULL_FACE);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.depthMask(true);gl.colorMask(true,true,true,true);
+gl.disable(gl.BLEND);gl.disable(gl.SCISSOR_TEST);
+for(const view of pose.views){
+const vp=layer.getViewport(view);gl.viewport(vp.x,vp.y,vp.width,vp.height);
+gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+gl.disable(gl.DEPTH_TEST);draw(matId(),tri,[1,0,.75,1]);gl.enable(gl.DEPTH_TEST);
+const viewProj=mul(view.projectionMatrix,view.transform.inverse.matrix);
+if(lastHit){const m=mul(new Float32Array(lastHit),mul(tr(0,.12,0),sc(.12,.12,.12)));draw(mul(viewProj,m),box,[1,.52,.04,1]);}
+for(const place of placed){const m=mul(place,mul(tr(0,.12,0),sc(.12,.12,.12)));draw(mul(viewProj,m),box,[.05,.7,1,1]);}
+}
+if(frames===1||frames%180===0)log('XR frames='+frames+' hits='+hits+' superficie='+!!lastHit+' fijados='+placed.length+' glError='+gl.getError()+' framebuffer='+gl.checkFramebufferStatus(gl.FRAMEBUFFER));
 }
 </script></body></html>
