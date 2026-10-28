@@ -1,7 +1,16 @@
 name: Publicar La Morada AR (FTPS)
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/deploy.yml"
   workflow_dispatch:
+
+concurrency:
+  group: la-morada-ar-staging
+  cancel-in-progress: true
 
 permissions:
   contents: read
