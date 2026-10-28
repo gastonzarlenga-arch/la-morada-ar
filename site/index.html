@@ -1,15 +1,15 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>LA MORADA AR V19 — WebGL 3D</title>
+<title>LA MORADA AR V20 — WebGL 3D</title>
 <style>html,body{margin:0;background:#161616;color:white;font:15px system-ui}main{max-width:650px;margin:auto;padding:18px}h1{color:#ff851b}button{padding:12px 16px;margin:6px 3px;font-size:15px}pre{background:#090909;padding:12px;white-space:pre-wrap;font:11px/1.5 monospace;max-height:250px;overflow:auto}canvas{width:100%;height:200px;background:#252525}small{color:#aaa}</style></head><body><main>
-<h1>LA MORADA AR V19</h1><p>WebGL 3D sin Three.js. En AR: el cubo naranja marca la mesa. Tocá la pantalla una vez para fijar un cubo celeste; luego mové el celular para comprobar que permanece en su lugar.</p>
-<button id="start">INICIAR AR</button><button id="copy">COPIAR DIAGNÓSTICO</button><canvas id="canvas"></canvas><pre id="logs"></pre><small>Prueba de estabilidad: un solo objeto fijo, sin triángulo fucsia.</small>
+<h1>LA MORADA AR V20</h1><p>WebGL 3D sin Three.js. En AR: la burger geométrica naranja marca la mesa. Tocá una vez para fijarla; los toques siguientes la giran 45°. Modelo ilustrativo, no es una burger real de La Morada.</p>
+<button id="start">INICIAR AR</button><button id="copy">COPIAR DIAGNÓSTICO</button><canvas id="canvas"></canvas><pre id="logs"></pre><small>Modelo 3D ilustrativo de prueba, compuesto por pan, carne y queso. No representa un producto real.</small>
 </main><script>
 'use strict';
 const lines=[], logEl=document.querySelector('#logs');function log(s){lines.push(new Date().toLocaleTimeString('es-AR')+' '+s);logEl.textContent=lines.slice(-32).join('\n');}
 window.onerror=e=>log('ERROR JS: '+e);
 window.onunhandledrejection=e=>log('ERROR PROMESA: '+e.reason);
-document.querySelector('#copy').onclick=()=>navigator.clipboard.writeText('LA MORADA AR V19\n'+lines.join('\n'));
+document.querySelector('#copy').onclick=()=>navigator.clipboard.writeText('LA MORADA AR V20\n'+lines.join('\n'));
 const canvas=document.querySelector('canvas');
 const gl=canvas.getContext('webgl',{xrCompatible:true,alpha:true,antialias:false});
 function sh(type,src){const x=gl.createShader(type);gl.shaderSource(x,src);gl.compileShader(x);if(!gl.getShaderParameter(x,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(x));return x;}
@@ -17,9 +17,10 @@ function program(v,f){const p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_
 const matId=()=>new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
 function mul(a,b){const c=new Float32Array(16);for(let j=0;j<4;j++)for(let i=0;i<4;i++)for(let k=0;k<4;k++)c[j*4+i]+=a[k*4+i]*b[j*4+k];return c;}
 function tr(x,y,z){const m=matId();m[12]=x;m[13]=y;m[14]=z;return m;}
+function rotY(a){const m=matId();m[0]=Math.cos(a);m[2]=-Math.sin(a);m[8]=Math.sin(a);m[10]=Math.cos(a);return m;}
 function sc(x,y,z){const m=matId();m[0]=x;m[5]=y;m[10]=z;return m;}
 function mesh(vertices){const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);return {b,n:vertices.length/3};}
-let p3d,uM,uColor,aPos,tri,box,session,ref,source,frames=0,hits=0,placed=[],lastHit=null;
+let p3d,uM,uColor,aPos,tri,box,burgerMesh,session,ref,source,frames=0,hits=0,placed=[],lastHit=null,angle=0;
 try {
 if(!gl)throw Error('WebGL indisponible');
 p3d=program('attribute vec3 position;uniform mat4 mvp;void main(){gl_Position=mvp*vec4(position,1.0);}','precision mediump float;uniform vec4 color;void main(){gl_FragColor=color;}');
@@ -28,7 +29,30 @@ tri=mesh([-.55,-.40,0,.55,-.40,0,0,.52,0]);
 const faces=[[[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]],[[1,-1,-1],[-1,-1,-1],[-1,1,-1],[1,1,-1]],[[1,-1,1],[1,-1,-1],[1,1,-1],[1,1,1]],[[-1,-1,-1],[-1,-1,1],[-1,1,1],[-1,1,-1]],[[-1,1,1],[1,1,1],[1,1,-1],[-1,1,-1]],[[-1,-1,-1],[1,-1,-1],[1,-1,1],[-1,-1,1]]];
 let verts=[];for(const q of faces){for(const ix of [0,1,2,0,2,3])verts.push(...q[ix]);}
 box=mesh(verts);
-log('WebGL listo. Botón INICIAR AR; triángulo fucsia en centro.');
+function cylinderVertices(n){
+ const a=[];for(let i=0;i<n;i++){const t=i*2*Math.PI/n,u=(i+1)*2*Math.PI/n;
+ const x=Math.cos(t),z=Math.sin(t),xx=Math.cos(u),zz=Math.sin(u);
+ a.push(x,0,z,xx,0,zz,xx,1,zz,x,0,z,xx,1,zz,x,1,z);
+ a.push(0,1,0,x,1,z,xx,1,zz,0,0,0,xx,0,zz,x,0,z);
+ }return a;
+}
+burgerMesh=mesh(cylinderVertices(32));
+function burger(viewProj,anchor,turn){
+ const root=mul(anchor,rotY(turn));
+ const layers=[
+ {y:.018,h:.038,r:.135,c:[.84,.43,.13,1]},
+ {y:.055,h:.030,r:.137,c:[.33,.12,.045,1]},
+ {y:.087,h:.013,r:.150,c:[1,.68,.06,1]},
+ {y:.105,h:.027,r:.139,c:[.39,.18,.07,1]},
+ {y:.136,h:.018,r:.145,c:[.18,.57,.15,1]},
+ {y:.153,h:.068,r:.139,c:[.91,.58,.24,1]}
+ ];
+ for(const l of layers){
+  const m=mul(root,mul(tr(0,l.y,0),sc(l.r,l.h,l.r)));
+  draw(mul(viewProj,m),burgerMesh,l.c);
+ }
+}
+log('WebGL listo. Burger ilustrativa en AR; sin modelo comercial.');
 } catch(e){log('ERROR preparación: '+e.message);}
 function draw(m,msh,color){gl.useProgram(p3d);gl.bindBuffer(gl.ARRAY_BUFFER,msh.b);gl.enableVertexAttribArray(aPos);gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,0,0);gl.uniformMatrix4fv(uM,false,m);gl.uniform4fv(uColor,color);gl.drawArrays(gl.TRIANGLES,0,msh.n);}
 function drawNormal(){gl.viewport(0,0,canvas.width,canvas.height);gl.clearColor(0,0,0,1);gl.clear(gl.COLOR_BUFFER_BIT);draw(matId(),tri,[1,0,.75,1]);}
@@ -42,9 +66,9 @@ session.updateRenderState({baseLayer:new XRWebGLLayer(session,gl,{alpha:true,dep
 ref=await session.requestReferenceSpace('local');
 const viewer=await session.requestReferenceSpace('viewer');
 source=await session.requestHitTestSource({space:viewer});
-frames=hits=0;placed=[];lastHit=null;
+frames=hits=0;placed=[];lastHit=null;angle=0;
 log('AR iniciada; fuente de detección preparada');
-session.addEventListener('select',()=>{if(placed.length){log('Ya existe un cubo fijo; reiniciá AR para repetir la prueba');}else if(lastHit){placed.push(new Float32Array(lastHit));log('Cubo fijado: ahora mové el celular alrededor de la mesa');}else log('Toque sin detección actual');});
+session.addEventListener('select',()=>{if(placed.length){angle+=(Math.PI/4);log('Burger girada '+Math.round(angle*180/Math.PI)%360+' grados');}else if(lastHit){placed.push(new Float32Array(lastHit));log('Burger de prueba colocada; tocá para girar 45 grados');}else log('Toque sin detección actual');});
 session.addEventListener('end',()=>{log('Fin AR frames='+frames+' hits='+hits+' colocados='+placed.length);source?.cancel();source=null;session=null;drawNormal();});
 session.requestAnimationFrame(onFrame);
 }catch(e){log('ERROR AR: '+(e.stack||e));}
@@ -64,8 +88,8 @@ const vp=layer.getViewport(view);gl.viewport(vp.x,vp.y,vp.width,vp.height);
 gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
 gl.enable(gl.DEPTH_TEST);
 const viewProj=mul(view.projectionMatrix,view.transform.inverse.matrix);
-if(lastHit){const m=mul(new Float32Array(lastHit),mul(tr(0,.12,0),sc(.12,.12,.12)));draw(mul(viewProj,m),box,[1,.52,.04,1]);}
-for(const place of placed){const m=mul(place,mul(tr(0,.12,0),sc(.12,.12,.12)));draw(mul(viewProj,m),box,[.05,.7,1,1]);}
+if(lastHit){burger(viewProj,new Float32Array(lastHit),0);}
+for(const place of placed){burger(viewProj,place,angle);}
 }
 if(frames===1||frames%180===0)log('XR frames='+frames+' hits='+hits+' superficie='+!!lastHit+' fijados='+placed.length+' glError='+gl.getError()+' framebuffer='+gl.checkFramebufferStatus(gl.FRAMEBUFFER));
 }
