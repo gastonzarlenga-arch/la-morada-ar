@@ -1,15 +1,15 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>LA MORADA AR V18 — WebGL 3D</title>
+<title>LA MORADA AR V19 — WebGL 3D</title>
 <style>html,body{margin:0;background:#161616;color:white;font:15px system-ui}main{max-width:650px;margin:auto;padding:18px}h1{color:#ff851b}button{padding:12px 16px;margin:6px 3px;font-size:15px}pre{background:#090909;padding:12px;white-space:pre-wrap;font:11px/1.5 monospace;max-height:250px;overflow:auto}canvas{width:100%;height:200px;background:#252525}small{color:#aaa}</style></head><body><main>
-<h1>LA MORADA AR V18</h1><p>WebGL 3D sin Three.js. En AR: triángulo fucsia de referencia; cubo naranja en la mesa cuando se detecte. Tocá pantalla para fijarlo.</p>
-<button id="start">INICIAR AR</button><button id="copy">COPIAR DIAGNÓSTICO</button><canvas id="canvas"></canvas><pre id="logs"></pre><small>La cámara real debe permanecer visible detrás de los objetos.</small>
+<h1>LA MORADA AR V19</h1><p>WebGL 3D sin Three.js. En AR: el cubo naranja marca la mesa. Tocá la pantalla una vez para fijar un cubo celeste; luego mové el celular para comprobar que permanece en su lugar.</p>
+<button id="start">INICIAR AR</button><button id="copy">COPIAR DIAGNÓSTICO</button><canvas id="canvas"></canvas><pre id="logs"></pre><small>Prueba de estabilidad: un solo objeto fijo, sin triángulo fucsia.</small>
 </main><script>
 'use strict';
 const lines=[], logEl=document.querySelector('#logs');function log(s){lines.push(new Date().toLocaleTimeString('es-AR')+' '+s);logEl.textContent=lines.slice(-32).join('\n');}
 window.onerror=e=>log('ERROR JS: '+e);
 window.onunhandledrejection=e=>log('ERROR PROMESA: '+e.reason);
-document.querySelector('#copy').onclick=()=>navigator.clipboard.writeText('LA MORADA AR V18\n'+lines.join('\n'));
+document.querySelector('#copy').onclick=()=>navigator.clipboard.writeText('LA MORADA AR V19\n'+lines.join('\n'));
 const canvas=document.querySelector('canvas');
 const gl=canvas.getContext('webgl',{xrCompatible:true,alpha:true,antialias:false});
 function sh(type,src){const x=gl.createShader(type);gl.shaderSource(x,src);gl.compileShader(x);if(!gl.getShaderParameter(x,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(x));return x;}
@@ -44,7 +44,7 @@ const viewer=await session.requestReferenceSpace('viewer');
 source=await session.requestHitTestSource({space:viewer});
 frames=hits=0;placed=[];lastHit=null;
 log('AR iniciada; fuente de detección preparada');
-session.addEventListener('select',()=>{if(lastHit){placed.push(new Float32Array(lastHit));log('Cubo fijado #'+placed.length);}else log('Toque sin detección actual');});
+session.addEventListener('select',()=>{if(placed.length){log('Ya existe un cubo fijo; reiniciá AR para repetir la prueba');}else if(lastHit){placed.push(new Float32Array(lastHit));log('Cubo fijado: ahora mové el celular alrededor de la mesa');}else log('Toque sin detección actual');});
 session.addEventListener('end',()=>{log('Fin AR frames='+frames+' hits='+hits+' colocados='+placed.length);source?.cancel();source=null;session=null;drawNormal();});
 session.requestAnimationFrame(onFrame);
 }catch(e){log('ERROR AR: '+(e.stack||e));}
@@ -62,7 +62,7 @@ gl.disable(gl.BLEND);gl.disable(gl.SCISSOR_TEST);
 for(const view of pose.views){
 const vp=layer.getViewport(view);gl.viewport(vp.x,vp.y,vp.width,vp.height);
 gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-gl.disable(gl.DEPTH_TEST);draw(matId(),tri,[1,0,.75,1]);gl.enable(gl.DEPTH_TEST);
+gl.enable(gl.DEPTH_TEST);
 const viewProj=mul(view.projectionMatrix,view.transform.inverse.matrix);
 if(lastHit){const m=mul(new Float32Array(lastHit),mul(tr(0,.12,0),sc(.12,.12,.12)));draw(mul(viewProj,m),box,[1,.52,.04,1]);}
 for(const place of placed){const m=mul(place,mul(tr(0,.12,0),sc(.12,.12,.12)));draw(mul(viewProj,m),box,[.05,.7,1,1]);}
