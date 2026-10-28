@@ -1,0 +1,50 @@
+name: Publicar La Morada AR (FTPS)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: ar-staging
+    steps:
+      - name: Obtener codigo
+        uses: actions/checkout@v4
+
+      - name: Comprobar configuracion y archivo
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_REMOTE_DIR: ${{ vars.FTP_REMOTE_DIR }}
+        run: |
+          set -euo pipefail
+          test -s site/index.html || { echo "::error::Falta site/index.html"; exit 1; }
+          test -n "$FTP_HOST" && test -n "$FTP_USER" && test -n "$FTP_PASSWORD" || { echo "::error::Faltan secretos FTPS"; exit 1; }
+          test -n "$FTP_REMOTE_DIR" || { echo "::error::Falta variable FTP_REMOTE_DIR"; exit 1; }
+          case "$FTP_REMOTE_DIR" in
+            *..*|*'*'*|*'?'*|*'['*|*']'*|*' '*|'/'|'.'|'') echo "::error::Directorio remoto inseguro"; exit 1 ;;
+          esac
+          case "$FTP_REMOTE_DIR" in
+            *menuvr/*) ;;
+            *) echo "::error::El directorio remoto debe contener 'menuvr/'"; exit 1 ;;
+          esac
+
+      - name: Publicar solo index.html por FTPS (sin borrar otros archivos)
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_REMOTE_DIR: ${{ vars.FTP_REMOTE_DIR }}
+        run: |
+          set -euo pipefail
+          REMOTE="${FTP_REMOTE_DIR#/}"
+          REMOTE="${REMOTE%/}"
+          curl --fail --show-error --silent --ssl-reqd --ftp-ssl-control --ftp-create-dirs --ftp-method nocwd \
+            --user "$FTP_USER:$FTP_PASSWORD" \
+            --upload-file site/index.html \
+            "ftp://${FTP_HOST}:21/${REMOTE}/index.html"
+          echo "Transferencia FTPS completada (falta comprobar la URL publica)."
