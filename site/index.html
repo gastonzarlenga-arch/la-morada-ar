@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>LA MORADA AR · V13</title>
+<title>LA MORADA AR · V15</title>
 <style>
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#171717;color:white;font-family:system-ui,Arial,sans-serif}
 canvas{display:block}
@@ -18,7 +18,7 @@ body.xr-active #status,body.xr-active #events,body.xr-active #copy{display:none}
 </script>
 </head>
 <body>
-<div id="status"><strong>LA MORADA AR V14</strong><div id="message">Cargando motor gráfico…</div></div>
+<div id="status"><strong>LA MORADA AR V15</strong><div id="message">Cargando motor gráfico…</div></div>
 <pre id="events"></pre>
 <button id="copy" type="button">Copiar diagnóstico</button>
 <script>
@@ -26,8 +26,8 @@ const records=[];
 function log(s){const line=new Date().toLocaleTimeString('es-AR')+' '+s;records.push(line);document.getElementById('events').textContent=records.slice(-26).join('\n');document.getElementById('message').textContent=s;}
 window.addEventListener('error',e=>log('ERROR JS: '+e.message));
 window.addEventListener('unhandledrejection',e=>log('ERROR promesa: '+String(e.reason)));
-document.getElementById('copy').onclick=()=>navigator.clipboard.writeText('LA MORADA AR V14\n'+records.join('\n'));
-log('Importando Three.js V14…');
+document.getElementById('copy').onclick=()=>navigator.clipboard.writeText('LA MORADA AR V15\n'+records.join('\n'));
+log('Importando Three.js V15…');
 </script>
 <script type="module">
 try {
@@ -40,12 +40,18 @@ try {
   renderer.setPixelRatio(Math.min(devicePixelRatio,2));
   renderer.setSize(innerWidth,innerHeight);
   renderer.xr.enabled=true;
+  renderer.setClearColor(0x000000,0);
+  renderer.autoClear=true;
   document.body.appendChild(renderer.domElement);
   scene.add(new THREE.HemisphereLight(0xffffff,0xbbbbff,3));
   const boxGeometry=new THREE.BoxGeometry(.18,.18,.18);
   const probe=new THREE.Mesh(new THREE.BoxGeometry(.17,.17,.17),new THREE.MeshBasicMaterial({color:0xff1754,depthTest:false,depthWrite:false,side:THREE.DoubleSide}));
   probe.renderOrder=50;probe.visible=false;scene.add(probe);
   const testOrigin=new THREE.Vector3(),testForward=new THREE.Vector3(),q=new THREE.Quaternion();
+  // Tarjeta de prueba perpendicular a la mirada XR, siempre frente a la cámara.
+  const panel=new THREE.Mesh(new THREE.PlaneGeometry(.24,.14),new THREE.MeshBasicMaterial({color:0xffff00,side:THREE.DoubleSide,depthTest:false,depthWrite:false,transparent:false}));
+  panel.renderOrder=100;panel.visible=false;scene.add(panel);
+  const panelOffset=new THREE.Vector3(.17,-.13,-.45);
   const projection=new THREE.Vector3();let xrPoseSeen=false;
   const orange=new THREE.Mesh(new THREE.BoxGeometry(.2,.2,.2),new THREE.MeshBasicMaterial({color:0xff851b}));
   orange.position.set(0,0,-.7);scene.add(orange);
@@ -63,10 +69,10 @@ try {
   controller.addEventListener('select',place);
   const btn=ARButton.createButton(renderer,{requiredFeatures:['hit-test']});
   document.body.appendChild(btn);
-  const onEnd=()=>{document.body.classList.remove('xr-active');orange.visible=true;probe.visible=false;ring.visible=false;hitTestSource=null;hitTestRequested=false;document.getElementById('copy').style.display='block';log('Sesión AR finalizada · cuadros='+frameCount+' hits='+hitCount+' colocados='+placed);};
+  const onEnd=()=>{document.body.classList.remove('xr-active');orange.visible=true;probe.visible=false;panel.visible=false;ring.visible=false;hitTestSource=null;hitTestRequested=false;document.getElementById('copy').style.display='block';log('Sesión AR finalizada · cuadros='+frameCount+' hits='+hitCount+' colocados='+placed);};
   renderer.xr.addEventListener('sessionstart',()=>{
-    document.body.classList.add('xr-active');orange.visible=false;probe.visible=true;frameCount=0;hitCount=0;placed=0;firstHit=false;xrPoseSeen=false;
-    log('AR iniciada · buscá cubo ROJO delante de la cámara y aro VERDE sobre mesa');
+    document.body.classList.add('xr-active');orange.visible=false;probe.visible=true;panel.visible=true;frameCount=0;hitCount=0;placed=0;firstHit=false;xrPoseSeen=false;
+    log('AR iniciada · buscá TARJETA AMARILLA a la derecha, cubo ROJO y aro VERDE');
   });
   renderer.xr.addEventListener('sessionend',onEnd);
   renderer.setAnimationLoop((time,frame)=>{
@@ -80,6 +86,8 @@ try {
         testForward.set(0,0,-.50).applyQuaternion(q);
         probe.position.copy(testOrigin).add(testForward);
         probe.quaternion.copy(q);
+        panel.position.copy(testOrigin).add(panelOffset.clone().applyQuaternion(q));
+        panel.quaternion.copy(q);
         if(!xrPoseSeen){log('Pose XR recibida; cubo rojo a 50 cm delante del visor');xrPoseSeen=true;}
       }
       const session=renderer.xr.getSession();
@@ -108,7 +116,7 @@ try {
         const pv=probe.position.clone();
         if(eye){eye.updateMatrixWorld(true);pv.project(eye);}
         const ndc=eye?pv.x.toFixed(2)+','+pv.y.toFixed(2)+','+pv.z.toFixed(2):'sin eye';
-        log('XR frames='+frameCount+' hits='+hitCount+' aro='+ring.visible+' cubos='+placed+' camaras='+((xrCamera.cameras||[]).length)+' rojoNDC='+ndc);
+        log('XR frames='+frameCount+' hits='+hitCount+' aro='+ring.visible+' cubos='+placed+' camaras='+((xrCamera.cameras||[]).length)+' rojoNDC='+ndc+' drawnCalls='+renderer.info.render.calls+' triangles='+renderer.info.render.triangles);
       }
     }else{
       orange.rotation.y+=.012;orange.rotation.x+=.006;
