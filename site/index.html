@@ -1,15 +1,15 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>LA MORADA AR V21 — WebGL 3D</title>
+<title>LA MORADA AR V22 — WebGL 3D</title>
 <style>html,body{margin:0;background:#161616;color:white;font:15px system-ui}main{max-width:650px;margin:auto;padding:18px}h1{color:#ff851b}button{padding:12px 16px;margin:6px 3px;font-size:15px}pre{background:#090909;padding:12px;white-space:pre-wrap;font:11px/1.5 monospace;max-height:250px;overflow:auto}canvas{width:100%;height:200px;background:#252525}small{color:#aaa}</style></head><body><main>
-<h1>LA MORADA AR V21</h1><p>WebGL 3D sin Three.js. En AR: la burger geométrica naranja marca la mesa. Tocá una vez para fijarla; los toques siguientes la giran 45°. Modelo ilustrativo, no es una burger real de La Morada.</p>
-<button id="start">INICIAR AR</button><button id="copy">COPIAR DIAGNÓSTICO</button><canvas id="canvas"></canvas><pre id="logs"></pre><small>Modelo 3D ilustrativo de prueba, compuesto por pan, carne y queso. No representa un producto real.</small>
+<h1>LA MORADA AR V22</h1><p>WebGL 3D sin Three.js. En AR: la burger geométrica naranja marca la mesa. Tocá una vez para fijarla; los toques siguientes la giran 45°. La marca roja lateral permite comprobar el giro. Modelo ilustrativo, no es una burger real de La Morada.</p>
+<button id="start">INICIAR AR</button><button id="copy">COPIAR DIAGNÓSTICO</button><canvas id="canvas"></canvas><pre id="logs"></pre><small>Modelo 3D ilustrativo de prueba con marcador lateral para verificar el giro. No representa un producto real.</small>
 </main><script>
 'use strict';
 const lines=[], logEl=document.querySelector('#logs');function log(s){lines.push(new Date().toLocaleTimeString('es-AR')+' '+s);logEl.textContent=lines.slice(-32).join('\n');}
 let lastError='',errorRepeats=0;window.onerror=e=>{const msg=String(e);if(msg===lastError){errorRepeats++;return;}if(errorRepeats)log('Error anterior repetido '+errorRepeats+' veces');lastError=msg;errorRepeats=0;log('ERROR JS: '+msg);};
 window.onunhandledrejection=e=>log('ERROR PROMESA: '+e.reason);
-document.querySelector('#copy').onclick=()=>navigator.clipboard.writeText('LA MORADA AR V21\n'+lines.join('\n'));
+document.querySelector('#copy').onclick=()=>navigator.clipboard.writeText('LA MORADA AR V22\n'+lines.join('\n'));
 const canvas=document.querySelector('canvas');
 const gl=canvas.getContext('webgl',{xrCompatible:true,alpha:true,antialias:false});
 function sh(type,src){const x=gl.createShader(type);gl.shaderSource(x,src);gl.compileShader(x);if(!gl.getShaderParameter(x,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(x));return x;}
@@ -55,9 +55,20 @@ function burger(viewProj,anchor,turn){
   const m=mul(root,mul(tr(0,l.y,0),sc(l.r,l.h,l.r)));
   draw(mul(viewProj,m),burgerMesh,l.c);
  }
+ // Referencias asimétricas: al rotar deben moverse alrededor del eje vertical.
+ // Se usan cubos geométricos existentes; no representan ingredientes reales.
+ const details=[
+  {x:.096,y:.105,z:.06,sx:.040,sy:.008,sz:.027,c:[.96,.12,.08,1]},
+  {x:-.090,y:.107,z:-.045,sx:.023,sy:.009,sz:.040,c:[.94,.31,.07,1]},
+  {x:.015,y:.154,z:-.104,sx:.047,sy:.007,sz:.021,c:[1,.78,.09,1]}
+ ];
+ for(const d of details){
+  const model=mul(root,mul(tr(d.x,d.y,d.z),sc(d.sx,d.sy,d.sz)));
+  draw(mul(viewProj,model),box,d.c);
+ }
 }
 if(typeof burger!=='function')log('ERROR crítico: la función burger no está disponible');
-else log('Motor V21: función burger disponible; '+burgerMesh.n+' vértices para cilindros');
+else log('Motor V22: función burger disponible; '+burgerMesh.n+' vértices para cilindros');
 function drawNormal(){gl.viewport(0,0,canvas.width,canvas.height);gl.clearColor(0,0,0,1);gl.clear(gl.COLOR_BUFFER_BIT);draw(matId(),tri,[1,0,.75,1]);}
 drawNormal();
 document.querySelector('#start').onclick=async()=>{
@@ -91,7 +102,7 @@ const vp=layer.getViewport(view);gl.viewport(vp.x,vp.y,vp.width,vp.height);
 gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
 gl.enable(gl.DEPTH_TEST);
 const viewProj=mul(view.projectionMatrix,view.transform.inverse.matrix);
-if(lastHit){burger(viewProj,new Float32Array(lastHit),0);}
+if(lastHit && placed.length===0){burger(viewProj,new Float32Array(lastHit),0);}
 for(const place of placed){burger(viewProj,place,angle);}
 }
 if(frames===1||frames%180===0)log('XR frames='+frames+' hits='+hits+' superficie='+!!lastHit+' fijados='+placed.length+' glError='+gl.getError()+' framebuffer='+gl.checkFramebufferStatus(gl.FRAMEBUFFER));
