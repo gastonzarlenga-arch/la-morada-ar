@@ -1,15 +1,15 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>LA MORADA AR V20 — WebGL 3D</title>
+<title>LA MORADA AR V21 — WebGL 3D</title>
 <style>html,body{margin:0;background:#161616;color:white;font:15px system-ui}main{max-width:650px;margin:auto;padding:18px}h1{color:#ff851b}button{padding:12px 16px;margin:6px 3px;font-size:15px}pre{background:#090909;padding:12px;white-space:pre-wrap;font:11px/1.5 monospace;max-height:250px;overflow:auto}canvas{width:100%;height:200px;background:#252525}small{color:#aaa}</style></head><body><main>
-<h1>LA MORADA AR V20</h1><p>WebGL 3D sin Three.js. En AR: la burger geométrica naranja marca la mesa. Tocá una vez para fijarla; los toques siguientes la giran 45°. Modelo ilustrativo, no es una burger real de La Morada.</p>
+<h1>LA MORADA AR V21</h1><p>WebGL 3D sin Three.js. En AR: la burger geométrica naranja marca la mesa. Tocá una vez para fijarla; los toques siguientes la giran 45°. Modelo ilustrativo, no es una burger real de La Morada.</p>
 <button id="start">INICIAR AR</button><button id="copy">COPIAR DIAGNÓSTICO</button><canvas id="canvas"></canvas><pre id="logs"></pre><small>Modelo 3D ilustrativo de prueba, compuesto por pan, carne y queso. No representa un producto real.</small>
 </main><script>
 'use strict';
 const lines=[], logEl=document.querySelector('#logs');function log(s){lines.push(new Date().toLocaleTimeString('es-AR')+' '+s);logEl.textContent=lines.slice(-32).join('\n');}
-window.onerror=e=>log('ERROR JS: '+e);
+let lastError='',errorRepeats=0;window.onerror=e=>{const msg=String(e);if(msg===lastError){errorRepeats++;return;}if(errorRepeats)log('Error anterior repetido '+errorRepeats+' veces');lastError=msg;errorRepeats=0;log('ERROR JS: '+msg);};
 window.onunhandledrejection=e=>log('ERROR PROMESA: '+e.reason);
-document.querySelector('#copy').onclick=()=>navigator.clipboard.writeText('LA MORADA AR V20\n'+lines.join('\n'));
+document.querySelector('#copy').onclick=()=>navigator.clipboard.writeText('LA MORADA AR V21\n'+lines.join('\n'));
 const canvas=document.querySelector('canvas');
 const gl=canvas.getContext('webgl',{xrCompatible:true,alpha:true,antialias:false});
 function sh(type,src){const x=gl.createShader(type);gl.shaderSource(x,src);gl.compileShader(x);if(!gl.getShaderParameter(x,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(x));return x;}
@@ -37,6 +37,10 @@ function cylinderVertices(n){
  }return a;
 }
 burgerMesh=mesh(cylinderVertices(32));
+
+log('WebGL listo. Burger ilustrativa en AR; sin modelo comercial.');
+} catch(e){log('ERROR preparación: '+e.message);}
+function draw(m,msh,color){gl.useProgram(p3d);gl.bindBuffer(gl.ARRAY_BUFFER,msh.b);gl.enableVertexAttribArray(aPos);gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,0,0);gl.uniformMatrix4fv(uM,false,m);gl.uniform4fv(uColor,color);gl.drawArrays(gl.TRIANGLES,0,msh.n);}
 function burger(viewProj,anchor,turn){
  const root=mul(anchor,rotY(turn));
  const layers=[
@@ -52,9 +56,8 @@ function burger(viewProj,anchor,turn){
   draw(mul(viewProj,m),burgerMesh,l.c);
  }
 }
-log('WebGL listo. Burger ilustrativa en AR; sin modelo comercial.');
-} catch(e){log('ERROR preparación: '+e.message);}
-function draw(m,msh,color){gl.useProgram(p3d);gl.bindBuffer(gl.ARRAY_BUFFER,msh.b);gl.enableVertexAttribArray(aPos);gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,0,0);gl.uniformMatrix4fv(uM,false,m);gl.uniform4fv(uColor,color);gl.drawArrays(gl.TRIANGLES,0,msh.n);}
+if(typeof burger!=='function')log('ERROR crítico: la función burger no está disponible');
+else log('Motor V21: función burger disponible; '+burgerMesh.n+' vértices para cilindros');
 function drawNormal(){gl.viewport(0,0,canvas.width,canvas.height);gl.clearColor(0,0,0,1);gl.clear(gl.COLOR_BUFFER_BIT);draw(matId(),tri,[1,0,.75,1]);}
 drawNormal();
 document.querySelector('#start').onclick=async()=>{
